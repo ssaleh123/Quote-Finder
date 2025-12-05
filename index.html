@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quote Identifier</title>
+<style>
+  body { background: black; color: white; font-family: Arial, sans-serif; text-align: center; padding: 30px; }
+  input {
+    width: 80%; padding: 12px; font-size: 16px; border-radius: 5px;
+    border: none; margin-bottom: 15px;
+  }
+  button {
+    padding: 10px 20px; font-size: 18px; cursor: pointer;
+    background: blue; color: white; border: none; border-radius: 5px;
+  }
+  #result { margin-top: 30px; font-size: 18px; white-space: pre-line; }
+</style>
+</head>
+<body>
+
+<h1>Quote Finder</h1>
+
+<input id="quoteInput" placeholder="Type a quote from a movie or TV show...">
+<br>
+<button onclick="identifyQuote()">Identify Quote</button>
+
+<div id="result"></div>
+
+<script>
+const WORKER_URL = "https://plain-dream-70da.samrules588.workers.dev/"; // Your Worker URL
+
+async function identifyQuote() {
+  const quote = document.getElementById("quoteInput").value.trim();
+  if (!quote) {
+    document.getElementById("result").textContent = "Please type a quote.";
+    return;
+  }
+
+  document.getElementById("result").textContent = "Thinking...";
+
+  const messages = [
+    {
+      role: "system",
+      content: `
+You are a strict JSON-only movie/TV quote identification engine.
+
+TASK:
+Given a quote (possibly paraphrased or inaccurate), you must:
+1. Identify the correct real quote from the movie or TV show.
+2. Correct the quote to the exact official wording.
+3. Return ONLY the following JSON:
+{
+  "inputQuote": "",
+  "correctQuote": "",
+  "character": "",
+  "actor": "",
+  "source": "",
+  "confidence": 0.0
+}
+
+RULES:
+- "correctQuote" must be the VERIFIED real quote as spoken in the film/show.
+- If the user’s quote is inaccurate, FIX IT.
+- NEVER return the user’s wrong quote as the correct quote.
+- ALWAYS output ONLY valid JSON. No markdown, no commentary.
+      `
+    },
+    {
+      role: "user",
+      content: `Identify and correct this quote: "${quote}"`
+    }
+  ];
+
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages,
+        temperature: 0
+      })
+    });
+
+    const data = await res.json();
+    const raw = data?.choices?.[0]?.message?.content?.trim() || "";
+
+    let json;
+    try {
+      json = JSON.parse(raw);
+    } catch {
+      document.getElementById("result").textContent = "Model returned invalid JSON.";
+      return;
+    }
+
+    document.getElementById("result").textContent =
+      `Quote: "${json.correctQuote}"\n` +
+      `Character: ${json.character}\n` +
+      `Actor: ${json.actor}\n` +
+      `Source: ${json.source}\n`;
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById("result").textContent = "Error contacting model.";
+  }
+}
+</script>
+
+</body>
+</html>
